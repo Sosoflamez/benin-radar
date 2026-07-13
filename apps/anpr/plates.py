@@ -33,9 +33,9 @@ def normalize_plate(raw: str) -> str | None:
 
     chars = list(cleaned)
     for i in (0, 1, 6, 7):
-        chars[i] = _DIGIT_CONFUSIONS.get(chars[i], chars[i])
-    for i in (2, 3, 4, 5):
         chars[i] = _LETTER_CONFUSIONS.get(chars[i], chars[i])
+    for i in (2, 3, 4, 5):
+        chars[i] = _DIGIT_CONFUSIONS.get(chars[i], chars[i])
     candidate = "".join(chars)
 
     match = PLATE_PATTERN.match(f"{candidate[:2]}{candidate[2:6]}{candidate[6:]}")
