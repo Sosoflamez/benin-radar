@@ -1,7 +1,7 @@
 from django.contrib import admin
 from simple_history.admin import SimpleHistoryAdmin
 
-from apps.infractions.models import Evidence, Infraction
+from apps.infractions.models import Evidence, EvidenceAccessLog, Infraction
 
 
 class EvidenceInline(admin.TabularInline):
@@ -43,6 +43,25 @@ class EvidenceAdmin(admin.ModelAdmin):
         return request.user.has_perm("infractions.view_evidence") and super().has_view_permission(
             request, obj
         )
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+
+@admin.register(EvidenceAccessLog)
+class EvidenceAccessLogAdmin(admin.ModelAdmin):
+    """Journal d'audit des consultations de preuves : lecture seule, jamais
+    modifiable ni supprimable (valeur probante de la journalisation elle-même)."""
+
+    list_display = ("evidence", "accessed_by", "accessed_at")
+    list_filter = ("accessed_by",)
+    date_hierarchy = "accessed_at"
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
 
     def has_delete_permission(self, request, obj=None):
         return False

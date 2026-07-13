@@ -42,6 +42,10 @@ class Infraction(models.Model):
 
     class Meta:
         ordering = ["-created_at"]
+        permissions = [
+            ("verify_infraction", "Peut vérifier une infraction détectée"),
+            ("validate_infraction", "Peut valider ou rejeter une infraction vérifiée"),
+        ]
 
     def __str__(self) -> str:
         return f"Infraction {self.camera.name} · {self.recorded_speed_kmh} km/h · {self.status}"
@@ -60,3 +64,23 @@ class Evidence(models.Model):
 
     def __str__(self) -> str:
         return f"Preuve infraction #{self.infraction_id} ({self.created_at:%Y-%m-%d})"
+
+
+class EvidenceAccessLog(models.Model):
+    """Journal de consultation des preuves (APDP, CLAUDE.md — chaque
+    consultation d'une preuve par un agent doit être journalisée)."""
+
+    evidence = models.ForeignKey(Evidence, on_delete=models.PROTECT, related_name="access_logs")
+    accessed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="evidence_access_logs"
+    )
+    accessed_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-accessed_at"]
+
+    def __str__(self) -> str:
+        return (
+            f"Consultation preuve #{self.evidence_id} par {self.accessed_by} "
+            f"({self.accessed_at:%Y-%m-%d %H:%M})"
+        )

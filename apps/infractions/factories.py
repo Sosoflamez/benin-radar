@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import factory
 from django.contrib.auth import get_user_model
+from django.contrib.auth.models import Group
 
 from apps.anpr.factories import PlateReadingFactory
 from apps.cameras.factories import CameraFactory
@@ -16,6 +17,41 @@ class UserFactory(factory.django.DjangoModelFactory):
 
     username = factory.Sequence(lambda n: f"agent{n}")
     email = factory.LazyAttribute(lambda o: f"{o.username}@benin-radar.bj")
+
+
+class AgentUserFactory(UserFactory):
+    """Utilisateur membre du groupe « Agents » (migration
+    0004_supervisors_group) : peut consulter les preuves/plaques et faire
+    passer une infraction detectee -> verifiee."""
+
+    class Meta:
+        model = get_user_model()
+        django_get_or_create = ("username",)
+        skip_postgeneration_save = True
+
+    username = factory.Sequence(lambda n: f"agent-user{n}")
+
+    @factory.post_generation
+    def _join_agents_group(self, create, extracted, **kwargs) -> None:
+        if create:
+            self.groups.add(Group.objects.get(name="Agents"))
+
+
+class SupervisorUserFactory(UserFactory):
+    """Utilisateur membre du groupe « Superviseurs » : seul habilité à
+    valider ou rejeter une infraction vérifiée."""
+
+    class Meta:
+        model = get_user_model()
+        django_get_or_create = ("username",)
+        skip_postgeneration_save = True
+
+    username = factory.Sequence(lambda n: f"supervisor-user{n}")
+
+    @factory.post_generation
+    def _join_supervisors_group(self, create, extracted, **kwargs) -> None:
+        if create:
+            self.groups.add(Group.objects.get(name="Superviseurs"))
 
 
 class InfractionFactory(factory.django.DjangoModelFactory):

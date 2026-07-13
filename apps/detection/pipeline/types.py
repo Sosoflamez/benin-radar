@@ -57,12 +57,35 @@ class CalibrationData:
     measured_distance_m: float
 
 
+# Délai d'abandon de piste par défaut de ByteTrack (apps/detection/pipeline/
+# tracker.py), en appels à update() — donc en frames échantillonnées, pas en
+# frames natives. Sert à valider track_timeout_s ci-dessous.
+_BYTETRACK_LOST_TRACK_BUFFER_FRAMES = 30
+
+
 @dataclass(frozen=True)
 class PipelineConfig:
     sample_fps: int = 15
     detection_confidence_threshold: float = 0.4
     tracking_confidence_threshold: float = 0.5
+    # Durée (secondes de flux) sans nouvelle détection avant de finaliser une
+    # piste (mode streaming, Phase 4). Doit être strictement supérieure au
+    # délai d'abandon interne de ByteTrack (_BYTETRACK_LOST_TRACK_BUFFER_FRAMES
+    # / sample_fps) : sinon on finaliserait une piste avant que ByteTrack ne
+    # l'abandonne lui-même, et une réapparition tardive sous le même track_id
+    # produirait un second SpeedEstimate pour un seul passage réel.
+    track_timeout_s: float = 3.0
     vehicle_classes: tuple[str, ...] = field(
         default_factory=lambda: ("car", "motorcycle", "bus", "truck")
     )
     model_weights_path: str | None = "yolov8n.pt"
+
+    def __post_init__(self) -> None:
+        min_timeout_s = _BYTETRACK_LOST_TRACK_BUFFER_FRAMES / self.sample_fps
+        if self.track_timeout_s <= min_timeout_s:
+            raise ValueError(
+                f"track_timeout_s ({self.track_timeout_s}s) doit être strictement "
+                f"supérieur au délai d'abandon de piste de ByteTrack "
+                f"({min_timeout_s:.2f}s à {self.sample_fps} fps), sous peine de double "
+                "comptage d'un même passage."
+            )

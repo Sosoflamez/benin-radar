@@ -9,8 +9,13 @@ import pytest
 
 from apps.detection.pipeline.capture import iter_frames
 from apps.detection.pipeline.homography import compute_homography, image_point_to_world
-from apps.detection.pipeline.runner import run_pipeline
+from apps.detection.pipeline.runner import run_pipeline, run_streaming_pipeline
 from apps.detection.pipeline.speed import estimate_speed
+from apps.detection.pipeline.stream import (
+    StreamConnectionError,
+    StreamReadError,
+    iter_stream_frames,
+)
 from apps.detection.pipeline.tracker import VehicleTracker
 from apps.detection.pipeline.types import (
     CalibrationData,
@@ -150,3 +155,86 @@ class TestRunPipeline:
         assert estimates[0].speed_kmh > 0
         assert estimates[0].exit_frame is not None
         assert estimates[0].exit_frame.shape == (480, 640, 3)
+
+
+class TestIterStreamFrames:
+    def test_stops_immediately_when_should_stop_is_true(self, synthetic_video: Path):
+        frames = list(
+            iter_stream_frames(str(synthetic_video), sample_fps=10, should_stop=lambda: True)
+        )
+        assert frames == []
+
+    def test_raises_connection_error_for_unopenable_stream(self, tmp_path: Path):
+        with pytest.raises(StreamConnectionError):
+            list(
+                iter_stream_frames(
+                    str(tmp_path / "missing.mp4"), sample_fps=10, should_stop=lambda: False
+                )
+            )
+
+    def test_raises_read_error_after_repeated_failures_at_eof(self, synthetic_video: Path):
+        # sample_fps très supérieur au fps natif : aucune attente de cadence,
+        # la fin du fichier (échecs de lecture répétés) est atteinte vite.
+        with pytest.raises(StreamReadError):
+            list(
+                iter_stream_frames(str(synthetic_video), sample_fps=1000, should_stop=lambda: False)
+            )
+
+    def test_calls_on_connected_before_first_frame(self, synthetic_video: Path):
+        calls = []
+        frames = iter_stream_frames(
+            str(synthetic_video),
+            sample_fps=10,
+            should_stop=lambda: False,
+            on_connected=lambda: calls.append("connected"),
+        )
+        next(frames)
+        assert calls == ["connected"]
+
+
+class TestRunStreamingPipeline:
+    def test_finalizes_track_incrementally_on_timeout(self, fake_detector_factory):
+        # Deux passages ("voitures") synthétiques séparés par un écart de
+        # temps supérieur à track_timeout_s (défaut 3.0s) : la première
+        # piste doit être finalisée et yieldée avant même que les frames de
+        # la seconde ne soient consommées par le générateur.
+        image = np.zeros((10, 10, 3), dtype=np.uint8)
+        detections_by_frame: dict[int, list[Detection]] = {}
+        frames: list[Frame] = []
+
+        for i in range(15):
+            y = -20 + i * 4
+            frames.append(Frame(index=i, timestamp_s=i / 15, image=image))
+            detections_by_frame[i] = [
+                Detection(bbox=[10.0, y - 10, 50.0, y], vehicle_class="car", confidence=0.9)
+            ]
+
+        frames.append(Frame(index=15, timestamp_s=4.5, image=image))  # écart > 3.0s, sans détection
+
+        car_b_start_index = 16
+        for j in range(15):
+            index = car_b_start_index + j
+            y = -20 + j * 4
+            frames.append(Frame(index=index, timestamp_s=4.6 + j / 15, image=image))
+            detections_by_frame[index] = [
+                Detection(bbox=[10.0, y - 10, 50.0, y], vehicle_class="car", confidence=0.9)
+            ]
+
+        detector = fake_detector_factory(detections_by_frame)
+        calibration = CalibrationData(
+            homography_matrix=IDENTITY_MATRIX,
+            reference_points=[[0, 0], [3.5, 0], [3.5, 20], [0, 20]],
+            measured_distance_m=20.0,
+        )
+        config = PipelineConfig(tracking_confidence_threshold=0.5)  # track_timeout_s par défaut
+
+        generator = run_streaming_pipeline(iter(frames), calibration, config, detector=detector)
+
+        first = next(generator)
+        assert first.speed_kmh > 0
+
+        second = next(generator)
+        assert second.speed_kmh > 0
+
+        with pytest.raises(StopIteration):
+            next(generator)

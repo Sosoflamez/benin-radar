@@ -3,6 +3,7 @@
 from pathlib import Path
 
 import environ
+from celery.schedules import crontab
 
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
 
@@ -112,12 +113,37 @@ CELERY_ACCEPT_CONTENT = ["json"]
 CELERY_TASK_SERIALIZER = "json"
 CELERY_RESULT_SERIALIZER = "json"
 CELERY_TIMEZONE = TIME_ZONE
+# run_camera_stream tourne sans limite de temps (ingestion RTSP continue) :
+# isolée sur sa propre queue pour ne pas faire attendre les tâches courtes
+# (OCR ANPR, purge RGPD) derrière elle sur la concurrency prefork par défaut.
+CELERY_TASK_ROUTES = {
+    "apps.detection.tasks.run_camera_stream": {"queue": "streams"},
+}
+# Purge RGPD/APDP (Phase 5, sécurité) : chaque nuit à 3h, hors heures de
+# pointe du dashboard.
+CELERY_BEAT_SCHEDULE = {
+    "purge-stale-detections": {
+        "task": "apps.detection.tasks.purge_stale_detections",
+        "schedule": crontab(hour=3, minute=0),
+    },
+}
 
 # Channels
 CHANNEL_LAYERS = {
     "default": {
         "BACKEND": "channels_redis.core.RedisChannelLayer",
         "CONFIG": {"hosts": [env("REDIS_URL")]},
+    },
+}
+
+# Cache Redis (backend natif Django, paquet `redis` déjà en dépendance).
+# Requis pour que le verrou d'ingestion par caméra (apps.detection.tasks)
+# soit partagé entre tous les processus worker Celery — un LocMemCache par
+# défaut ne l'est pas.
+CACHES = {
+    "default": {
+        "BACKEND": "django.core.cache.backends.redis.RedisCache",
+        "LOCATION": env("REDIS_URL"),
     },
 }
 
@@ -131,6 +157,11 @@ YOLO_MODEL_WEIGHTS = env.str("YOLO_MODEL_WEIGHTS", default="yolov8n.pt")
 PIPELINE_SAMPLE_FPS = env.int("PIPELINE_SAMPLE_FPS", default=15)
 DETECTION_CONFIDENCE_THRESHOLD = env.float("DETECTION_CONFIDENCE_THRESHOLD", default=0.4)
 TRACKING_CONFIDENCE_THRESHOLD = env.float("TRACKING_CONFIDENCE_THRESHOLD", default=0.5)
+# Ingestion continue (Phase 4) : durée sans nouvelle détection avant de
+# finaliser une piste. Doit rester strictement supérieure au délai
+# d'abandon de piste de ByteTrack (30 / PIPELINE_SAMPLE_FPS secondes) —
+# voir apps/detection/pipeline/types.py::PipelineConfig.__post_init__.
+PIPELINE_TRACK_TIMEOUT_S = env.float("PIPELINE_TRACK_TIMEOUT_S", default=3.0)
 
 # ANPR (Phase 3)
 ANPR_EASYOCR_GPU = env.bool("ANPR_EASYOCR_GPU", default=False)
