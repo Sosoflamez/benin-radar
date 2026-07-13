@@ -132,7 +132,4 @@ Les plaques d'immatriculation sont des **données personnelles** (loi n° 2017-2
 
 Quand l'utilisateur demande « tâches en instance » ou « ce qui reste », il fait référence à cette liste — pas au `git status` du moment. La tenir à jour : ajouter une entrée quand une tâche est identifiée, la retirer (pas juste la cocher) une fois committée/terminée.
 
-- [ ] Committer `apps/{anpr,cameras,detection,infractions}/factories.py` (fixtures factory_boy, non trackées)
-- [ ] Committer les tests étendus (`apps/{anpr,cameras,detection,infractions}/tests.py`)
-- [ ] Committer le fix d'ordre des tables de confusion OCR dans `apps/anpr/plates.py`
-- [ ] Committer le fix de migration `apps/infractions/migrations/0002_agents_group.py` (permissions créées explicitement avant le groupe agents)
+(aucune tâche en instance actuellement)
