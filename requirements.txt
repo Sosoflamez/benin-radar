@@ -40,7 +40,7 @@ networkx==3.2.1
 ninja==1.13.0
 numpy==2.0.2
 nvidia-ml-py==13.610.43
-opencv-python-headless==4.10.0.84
+opencv-python==5.0.0.93
 packaging==26.2
 pillow==11.3.0
 pluggy==1.6.0
