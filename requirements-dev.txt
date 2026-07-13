@@ -1,0 +1,8 @@
+-r requirements.txt
+
+factory_boy==3.3.3
+Faker==37.12.0
+pytest==8.4.2
+pytest-django==4.11.1
+pytest-cov==6.0.0
+ruff==0.15.21
