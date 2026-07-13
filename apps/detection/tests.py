@@ -102,3 +102,30 @@ class TestRunPipelineForCamera:
         assert len(detections) == 1
         assert VehicleDetection.objects.count() == 1
         assert detections[0].camera == camera
+
+    def test_evaluates_each_detection_for_infraction(self, tmp_path, monkeypatch):
+        camera = CameraFactory()
+        CalibrationProfileFactory(camera=camera)
+        estimate = SpeedEstimate(
+            track_id=1,
+            vehicle_class="car",
+            entered_at_s=0.0,
+            exited_at_s=1.0,
+            speed_kmh=50.0,
+            confidence=0.9,
+            bbox_at_exit=[0.0, 0.0, 10.0, 10.0],
+        )
+        monkeypatch.setattr(
+            "apps.detection.services.run_pipeline", lambda *args, **kwargs: [estimate]
+        )
+        calls = []
+        monkeypatch.setattr(
+            "apps.detection.services.evaluate_detection_for_infraction",
+            lambda detection, exit_frame: calls.append((detection, exit_frame)),
+        )
+
+        detections = run_pipeline_for_camera(camera, tmp_path / "video.mp4")
+
+        assert len(calls) == 1
+        assert calls[0][0] == detections[0]
+        assert calls[0][1] is estimate.exit_frame

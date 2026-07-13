@@ -42,6 +42,10 @@ class SpeedEstimate:
     speed_kmh: float
     confidence: float
     bbox_at_exit: list[float]
+    # Dernière frame vue du track (approximation du franchissement de sortie,
+    # voir runner.py) — exclue de l'égalité/repr car une comparaison
+    # d'ndarray n'est pas booléenne et le tableau est trop volumineux à afficher.
+    exit_frame: np.ndarray | None = field(default=None, compare=False, repr=False)
 
 
 @dataclass(frozen=True)

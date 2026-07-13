@@ -148,3 +148,5 @@ class TestRunPipeline:
         assert len(estimates) == 1
         assert estimates[0].vehicle_class == "car"
         assert estimates[0].speed_kmh > 0
+        assert estimates[0].exit_frame is not None
+        assert estimates[0].exit_frame.shape == (480, 640, 3)

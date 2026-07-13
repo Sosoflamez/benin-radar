@@ -13,6 +13,7 @@ from apps.cameras.models import CalibrationProfile, Camera
 from apps.detection.models import VehicleDetection
 from apps.detection.pipeline.runner import run_pipeline
 from apps.detection.pipeline.types import CalibrationData, PipelineConfig, SpeedEstimate
+from apps.infractions.services import evaluate_detection_for_infraction
 
 
 def calibration_data_from_profile(profile: CalibrationProfile) -> CalibrationData:
@@ -69,6 +70,9 @@ def run_pipeline_for_camera(
     estimates = run_pipeline(video_path, calibration, config)
 
     resolved_recorded_at = recorded_at or timezone.now()
-    return [
-        persist_speed_estimate(camera, estimate, resolved_recorded_at) for estimate in estimates
-    ]
+    detections = []
+    for estimate in estimates:
+        detection = persist_speed_estimate(camera, estimate, resolved_recorded_at)
+        evaluate_detection_for_infraction(detection, estimate.exit_frame)
+        detections.append(detection)
+    return detections

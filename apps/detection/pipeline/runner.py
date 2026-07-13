@@ -6,7 +6,10 @@ apps/detection/services.py)."""
 from __future__ import annotations
 
 from collections import defaultdict
+from dataclasses import replace
 from pathlib import Path
+
+import numpy as np
 
 from apps.detection.pipeline.capture import iter_frames
 from apps.detection.pipeline.detector import VehicleDetector, YoloVehicleDetector
@@ -34,6 +37,11 @@ def run_pipeline(
         )
     tracker = VehicleTracker()
     tracks: dict[int, list[TrackedDetection]] = defaultdict(list)
+    # Dernière frame vue par piste, écrasée à chaque frame : bornée par le
+    # nombre de véhicules simultanément suivis, pas par la durée de la
+    # vidéo. Sert de preuve/source de crop pour l'ANPR (apps/infractions,
+    # apps/anpr) — approximation de l'instant de franchissement de sortie.
+    latest_frame_by_track: dict[int, np.ndarray] = {}
 
     for frame in iter_frames(video_path, config.sample_fps):
         detections = [
@@ -41,9 +49,10 @@ def run_pipeline(
         ]
         for tracked_detection in tracker.update(frame, detections):
             tracks[tracked_detection.track_id].append(tracked_detection)
+            latest_frame_by_track[tracked_detection.track_id] = frame.image
 
     estimates = [
-        estimate
+        replace(estimate, exit_frame=latest_frame_by_track.get(estimate.track_id))
         for track_detections in tracks.values()
         if (
             estimate := estimate_speed(
