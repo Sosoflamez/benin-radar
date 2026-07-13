@@ -1,3 +1,5 @@
+from decimal import Decimal
+
 import pytest
 from django.contrib.admin.sites import AdminSite
 from django.contrib.auth import get_user_model
@@ -7,7 +9,12 @@ from django.test import RequestFactory
 from apps.anpr.admin import PlateReadingAdmin
 from apps.anpr.factories import PlateReadingFactory
 from apps.anpr.models import PlateReading
+from apps.anpr.pipeline.types import PlateCandidate
 from apps.anpr.plates import normalize_plate
+from apps.anpr.services import create_plate_reading_from_evidence
+from apps.anpr.tasks import read_plate_for_evidence
+from apps.infractions.factories import EvidenceFactory
+from apps.infractions.models import Infraction
 
 
 class TestNormalizePlate:
@@ -68,3 +75,54 @@ class TestPlateReadingAdmin:
             Permission.objects.get(codename="view_plate_data", content_type__app_label="anpr"),
         )
         assert admin.has_view_permission(self._request_for(user)) is True
+
+
+@pytest.mark.django_db
+class TestCreatePlateReadingFromEvidence:
+    def test_legible_plate_links_infraction_and_evidence(self, fake_plate_reader_factory):
+        evidence = EvidenceFactory()
+        reader = fake_plate_reader_factory(
+            [[PlateCandidate(text="AB1234RB", confidence=0.9, polygon=[])]]
+        )
+
+        plate_reading = create_plate_reading_from_evidence(evidence, reader=reader)
+
+        assert plate_reading.status == PlateReading.Status.LISIBLE
+        assert plate_reading.normalized_plate == "AB 1234 RB"
+        assert plate_reading.detection == evidence.infraction.detection
+        evidence.refresh_from_db()
+        assert evidence.plate_crop_image
+
+        infraction = evidence.infraction
+        infraction.refresh_from_db()
+        assert infraction.plate == plate_reading
+        assert infraction.status == Infraction.Status.VERIFIEE
+
+    def test_illisible_plate_leaves_infraction_detectee(self, fake_plate_reader_factory):
+        evidence = EvidenceFactory(infraction__plate=None)
+        reader = fake_plate_reader_factory([[]])
+
+        plate_reading = create_plate_reading_from_evidence(evidence, reader=reader)
+
+        assert plate_reading.status == PlateReading.Status.ILLISIBLE
+        assert plate_reading.normalized_plate == ""
+        assert plate_reading.ocr_confidence == Decimal("0.000")
+
+        infraction = evidence.infraction
+        infraction.refresh_from_db()
+        assert infraction.plate is None
+        assert infraction.status == Infraction.Status.DETECTEE
+
+
+@pytest.mark.django_db
+class TestReadPlateForEvidence:
+    def test_delegates_to_service_and_returns_reading_id(self, monkeypatch):
+        evidence = EvidenceFactory()
+        created = PlateReadingFactory(detection=evidence.infraction.detection)
+        monkeypatch.setattr(
+            "apps.anpr.tasks.create_plate_reading_from_evidence", lambda evidence: created
+        )
+
+        result = read_plate_for_evidence(evidence.id)
+
+        assert result == created.id
