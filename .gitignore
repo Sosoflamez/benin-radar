@@ -27,3 +27,8 @@ htmlcov/
 .DS_Store
 .idea/
 .vscode/
+
+# Assistant IA local (ne doit jamais être versionné, reste uniquement dans l'éditeur)
+.claude/
+CLAUDE.md
+*claude*
