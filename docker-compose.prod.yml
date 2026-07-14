@@ -1,0 +1,25 @@
+# Override de production : `docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build`
+#
+# - `web` tourne sous `daphne` (ASGI, sert HTTP + WebSocket) au lieu de
+#   `runserver`, et ne mount plus le code en bind-mount (image figée).
+# - `nginx` termine le TLS et relaie vers `web:8000`. Le certificat fourni ici
+#   est un certificat auto-signé de développement, généré par
+#   `scripts/generate_dev_tls_cert.sh` — à remplacer par un vrai certificat
+#   (Let's Encrypt ou autre autorité) avant toute mise en production réelle.
+services:
+  web:
+    command: daphne -b 0.0.0.0 -p 8000 config.asgi:application
+    volumes: !override []
+    environment:
+      DJANGO_SETTINGS_MODULE: config.settings.prod
+
+  nginx:
+    image: nginx:1.27-alpine
+    depends_on:
+      - web
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./deploy/nginx/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./deploy/nginx/certs:/etc/nginx/certs:ro

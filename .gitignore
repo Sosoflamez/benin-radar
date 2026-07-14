@@ -7,6 +7,7 @@ venv/
 .env
 db.sqlite3
 staticfiles/
+celerybeat-schedule
 
 media/*
 !media/evidence/
@@ -18,6 +19,9 @@ ml_models/*
 
 tests/fixtures/videos/*
 !tests/fixtures/videos/.gitkeep
+
+deploy/nginx/certs/*
+!deploy/nginx/certs/.gitkeep
 
 .pytest_cache/
 .coverage

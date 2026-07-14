@@ -46,6 +46,10 @@ MIDDLEWARE = [
 
 ROOT_URLCONF = "config.urls"
 
+LOGIN_URL = "login"
+LOGIN_REDIRECT_URL = "dashboard-home"
+LOGOUT_REDIRECT_URL = "login"
+
 TEMPLATES = [
     {
         "BACKEND": "django.template.backends.django.DjangoTemplates",

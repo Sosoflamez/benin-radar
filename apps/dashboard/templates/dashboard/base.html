@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{% block title %}Bénin Radar{% endblock %}</title>
+
+<script>
+  /* Choisit le thème avant le premier rendu pour éviter tout flash. */
+  (function () {
+    var stored = localStorage.getItem("br-theme");
+    var prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+    var isDark = stored ? stored === "dark" : prefersDark;
+    document.documentElement.classList.toggle("dark", isDark);
+  })();
+</script>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@600;700;900&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+  tailwind.config = {
+    darkMode: "class",
+    theme: {
+      extend: {
+        fontFamily: {
+          display: ['"Big Shoulders Display"', "sans-serif"],
+          mono: ['"IBM Plex Mono"', "ui-monospace", "monospace"],
+        },
+        colors: {
+          radar: {
+            amber: "#ffb020",
+            cyan: "#22d3ee",
+            emerald: "#34d399",
+            rose: "#fb7185",
+          },
+        },
+      },
+    },
+  };
+</script>
+<script defer src="https://unpkg.com/alpinejs@3.14.9/dist/cdn.min.js"></script>
+<script>
+  document.addEventListener("alpine:init", function () {
+    Alpine.store("theme", {
+      dark: document.documentElement.classList.contains("dark"),
+      toggle() {
+        this.dark = !this.dark;
+        document.documentElement.classList.toggle("dark", this.dark);
+        localStorage.setItem("br-theme", this.dark ? "dark" : "light");
+      },
+    });
+  });
+</script>
+
+<style>
+  body {
+    background-image:
+      radial-gradient(ellipse at top, rgba(255, 176, 32, 0.08), transparent 60%),
+      repeating-linear-gradient(180deg, rgba(127, 127, 127, 0.035) 0px, rgba(127, 127, 127, 0.035) 1px, transparent 1px, transparent 3px);
+    background-attachment: fixed;
+  }
+  @keyframes flash-row {
+    0% { background-color: rgba(255, 176, 32, 0.25); }
+    100% { background-color: transparent; }
+  }
+  .animate-flash { animation: flash-row 2s ease-out; }
+</style>
+</head>
+<body class="min-h-screen bg-stone-50 font-sans text-zinc-900 antialiased dark:bg-zinc-950 dark:text-zinc-100">
+
+<header class="sticky top-0 z-10 border-b border-zinc-200 bg-white/80 backdrop-blur dark:border-zinc-800 dark:bg-zinc-950/80">
+  <div class="mx-auto flex max-w-6xl items-center justify-between px-4 py-4 sm:px-6 lg:px-8">
+    <a href="{% url 'dashboard-home' %}" class="flex items-center gap-2 font-display text-2xl font-extrabold uppercase tracking-wide">
+      <span class="inline-block h-2.5 w-2.5 rounded-full bg-radar-amber"></span>
+      Bénin<span class="text-radar-amber">·</span>Radar
+    </a>
+    <div class="flex items-center gap-4">
+      {% if user.is_authenticated %}
+        <span class="hidden font-mono text-xs uppercase tracking-wider text-zinc-500 dark:text-zinc-400 sm:inline">{{ user.username }}</span>
+        <form method="post" action="{% url 'logout' %}">
+          {% csrf_token %}
+          <button type="submit" class="font-mono text-xs uppercase tracking-wider text-zinc-500 underline-offset-4 hover:text-radar-rose hover:underline dark:text-zinc-400">
+            Déconnexion
+          </button>
+        </form>
+      {% endif %}
+      <button
+        @click="$store.theme.toggle()"
+        x-data
+        aria-label="Basculer thème clair/sombre"
+        class="rounded-full border border-zinc-200 p-2 text-zinc-600 transition hover:border-radar-amber hover:text-radar-amber dark:border-zinc-800 dark:text-zinc-400"
+      >
+        <svg x-show="!$store.theme.dark" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="h-4 w-4">
+          <circle cx="12" cy="12" r="4"></circle>
+          <path stroke-linecap="round" d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"></path>
+        </svg>
+        <svg x-show="$store.theme.dark" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="h-4 w-4">
+          <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+        </svg>
+      </button>
+    </div>
+  </div>
+</header>
+
+<main>
+  {% block content %}{% endblock %}
+</main>
+
+</body>
+</html>

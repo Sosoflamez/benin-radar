@@ -66,9 +66,13 @@ services:
 
   worker-streams:
     build: .
-    # Une tâche run_camera_stream par caméra active, sans limite de temps :
-    # concurrency dimensionnée sur le nombre de flux RTSP simultanés attendus.
-    command: celery -A config worker -l info -Q streams --concurrency=4
+    # Une tâche run_camera_stream par caméra active, sans limite de temps.
+    # scripts/loadtest_streams.py (CPU, inférence YOLO sur CPU) montre que
+    # cette machine de dev décroche du temps réel dès 2 flux simultanés :
+    # concurrency=1 ici. À revalider avec scripts/loadtest_streams.py sur le
+    # matériel de prod réel et le nombre de caméras effectif (GPU ou CPU plus
+    # capable => palier plus haut possible).
+    command: celery -A config worker -l info -Q streams --concurrency=1
     volumes:
       - .:/app
     env_file: .env
